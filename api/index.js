@@ -4,32 +4,38 @@ const path    = require('path');
 const fs      = require('fs');
 const app     = express();
 
+// agar bisa diakses publik
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+// konfigurasi multer
 const storage = multer.diskStorage({
-  destination: (_, __, cb)=>{
+  destination: (_, __, cb) => {
     const dir = path.join(__dirname, '../uploads');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
-  filename: (_, file, cb)=> cb(null, file.originalname)
+  filename: (_, file, cb) => {
+    cb(null, Date.now() + '-' + file.originalname);
+  }
 });
 const upload = multer({ storage });
 
-app.get('/api/files', (_, res)=>{
+// route list
+app.get('/api/files', (_req, res) => {
   const dir = path.join(__dirname, '../uploads');
-  if(!fs.existsSync(dir)) return res.json([]);
-  res.json(fs.readdirSync(dir).map(name=>({ name, url:`/uploads/${name}` })));
+  if (!fs.existsSync(dir)) return res.json([]);
+  const files = fs.readdirSync(dir).map(f => ({
+    name: f,
+    url : `/uploads/${f}`
+  }));
+  res.json(files);
 });
 
-app.post('/api/upload', upload.single('file'), (req, res)=>{
-  res.json({ url: `/uploads/${req.file.originalname}` });
+// route upload
+app.post('/api/upload', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).send('Tidak ada file');
+  res.json({ url: `/uploads/${req.file.filename}` });
 });
 
-app.delete('/api/delete', (req, res)=>{
-  const file = path.join(__dirname, '../uploads', req.query.name);
-  if(fs.existsSync(file)){ fs.unlinkSync(file); }
-  res.sendStatus(200);
-});
-
+// export for serverless
 module.exports = app;
